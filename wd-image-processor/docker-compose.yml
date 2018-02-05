@@ -1,4 +1,16 @@
 version: "3"
 services:
   app:
+    image: wd-image-processor-app
     build: .
+    links:
+      - wd-firefox
+    environment:
+      - WD_BASE_URL=http://wd-firefox:9516
+    ports:
+      - 8080:8080
+  wd-firefox:
+    image: quay.io/wakaba/firefoxdriver:stable
+    command: /fx
+    ports:
+      - 9516:9516

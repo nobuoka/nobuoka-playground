@@ -1,10 +1,14 @@
-FROM openjdk:9 AS build-env
+# See : https://github.com/docker-library/openjdk/issues/145
+FROM openjdk:8
 
-ADD . /build-env
-WORKDIR /build-env
+RUN mkdir -p /app
+WORKDIR /app
+
+ADD ./gradle/ ./gradle/
+ADD ./gradlew ./gradlew
+RUN chmod +x ./gradlew && ./gradlew -v
+
+ADD ./ ./
 RUN ./gradlew installDist
-
-FROM openjdk:9
-
-COPY --from=build-env /build-env/build/install/* /
-ENTRYPOINT ["ls", "-la", "/"]
+ENV PATH $PATH:/app/build/install/app/bin
+CMD ["app"]
