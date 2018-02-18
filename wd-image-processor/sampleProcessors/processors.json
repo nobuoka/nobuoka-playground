@@ -1,0 +1,10 @@
+{
+  "map": {
+    "html": "./map/map.html",
+    "js": "./map/map.js"
+  },
+  "hello": {
+    "html": "./simple/main.html",
+    "js": "./simple/main.js"
+  }
+}

@@ -1,5 +1,7 @@
 package info.vividcode.sample.wdip
 
+import com.beust.klaxon.JsonObject
+import com.beust.klaxon.Klaxon
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import java.nio.charset.StandardCharsets
@@ -9,16 +11,28 @@ import io.ktor.routing.*
 import io.ktor.application.*
 import io.ktor.content.OutgoingContent
 import io.ktor.http.ContentType
+import io.ktor.pipeline.PipelineInterceptor
 import io.ktor.response.respond
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 
 class ByteArrayContent(override val contentType: ContentType, private val bytes: ByteArray) : OutgoingContent.ByteArrayContent() {
     override fun bytes(): ByteArray = bytes
 }
 
 fun main(args: Array<String>) {
-    val webDriverBaseUrl = System.getenv("WD_BASE_URL") ?: "http://localhost:9516"
+    val webDriverBaseUrl = System.getenv("WD_BASE_URL") ?: "http://localhost:10000"
+    val processorsConfigJsonPath = System.getenv("PROCESSORS_CONFIG_PATH") ?: "./sampleProcessors/processors.json"
+
+    val settings = parseProcessorsConfigJson(Paths.get(processorsConfigJsonPath))
+    val functionMap = settings.map {
+        it.path to createWdImageProcessingPipelineInterceptor(
+            WebDriverFoo(it.html, it.js, webDriverBaseUrl, WebDriverCommandFactory.ForChromeDriver)
+        )
+    }.toMap()
 
     val server = embeddedServer(Netty, 8080) {
         intercept(ApplicationCallPipeline.Call) {
@@ -29,74 +43,65 @@ fun main(args: Array<String>) {
                 throw e
             }
         }
+
         routing {
-            get("/map") {
-                call.respond(ByteArrayContent(ContentType.Image.PNG, foo(webDriverBaseUrl)))
+            functionMap.map { function ->
+                get(function.key, function.value)
             }
         }
     }
     server.start(wait = true)
 }
 
-fun foo(webDriverBaseUrl: String): ByteArray {
-    val okHttpClient = OkHttpClient.Builder()
+data class ProcessorSetting(val path: String, val html: String, val js: String)
+
+fun parseProcessorsConfigJson(jsonFile: Path): List<ProcessorSetting> {
+    fun Path.readContent(): String = Files.readAllBytes(jsonFile.parent.resolve(this)).toString(StandardCharsets.UTF_8)
+
+    val configObject = jsonFile.toFile().reader().use { Klaxon().parseJsonObject(it) }
+    return configObject.entries.map { (path, config) ->
+        val htmlString = (config as? JsonObject)?.string("html")?.let { Paths.get(it).readContent() }
+        val jsString = (config as? JsonObject)?.string("js")?.let { Paths.get(it).readContent() }
+        ProcessorSetting(path, htmlString ?: "", jsString ?: "")
+    }
+}
+
+data class WindowRect(val width: Int, val height: Int)
+
+fun createWdImageProcessingPipelineInterceptor(webDriverFoo: WebDriverFoo): PipelineInterceptor<Unit, ApplicationCall> = {
+    val width = call.request.queryParameters.get("width")?.toIntOrNull() ?: 360
+    val height = call.request.queryParameters.get("height")?.toIntOrNull() ?: 360
+    val arg = call.request.queryParameters.get("arg") ?: "null"
+    call.respond(ByteArrayContent(ContentType.Image.PNG, webDriverFoo.execute(WindowRect(width, height), arg)))
+}
+
+class WebDriverFoo(private val htmlString: String, private val jsString: String, private val webDriverBaseUrl: String, private val wd: WebDriverCommandFactory) {
+    fun execute(windowRect: WindowRect, jsArg: String): ByteArray {
+        val okHttpClient = OkHttpClient.Builder()
             .addNetworkInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
             .build()
-    val baseUrl = webDriverBaseUrl
-    val wdHttpRequestDispatcher = OkHttpWebDriverCommandHttpRequestDispatcher(okHttpClient, baseUrl)
-    val wdSessionManager = WebDriverSessionManager(wdHttpRequestDispatcher)
+        val baseUrl = webDriverBaseUrl
+        val wdHttpRequestDispatcher = OkHttpWebDriverCommandHttpRequestDispatcher(okHttpClient, baseUrl)
+        val wdSessionManager = WebDriverSessionManager(WebDriverCommandFactory.ForChromeDriver, wdHttpRequestDispatcher)
 
-    return wdSessionManager.startSession { sessionId, wdHttpRequestDispatcher ->
-        val html = """<!doctype html>
-<html lang="en">
-  <head>
-    <link rel="stylesheet" href="https://openlayers.org/en/v4.6.4/css/ol.css" type="text/css">
-    <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-        width: 100%;
-      }
-      .map {
-        height: 100%;
-        width: 100%;
-      }
-    </style>
-    <script src="https://openlayers.org/en/v4.6.4/build/ol.js" type="text/javascript"></script>
-    <title>OpenLayers example</title>
-  </head>
-  <body>
-    <div id="map" class="map"></div>
-  </body>
-</html>
-            """
-        wdHttpRequestDispatcher.dispatch(createGoCommand(sessionId, createHtmlDataUrl(html)))
+        return wdSessionManager.startSession { sessionId, wdHttpRequestDispatcher ->
+            wdHttpRequestDispatcher.dispatch(wd.createGoCommand(sessionId, createHtmlDataUrl(htmlString)))
+            wdHttpRequestDispatcher.dispatch(wd.createSetWindowRect(sessionId, windowRect.width, windowRect.height))
 
-        val script = """
-      var map = new ol.Map({
-        target: 'map',
-        layers: [
-          new ol.layer.Tile({
-            source: new ol.source.OSM()
-          })
-        ],
-        view: new ol.View({
-          center: ol.proj.fromLonLat([37.41, 8.82]),
-          zoom: 4
-        })
-      });
-            return arguments[0];
-            """
-        val executeResult = wdHttpRequestDispatcher.dispatch(createExecuteScriptCommand(sessionId, script, listOf("test!?!?!"))).string("value")
-        println("Execute result: $executeResult")
+            // Take Element Screenshot command is not implemented by ChromeDriver...
+//            val elementId = wdHttpRequestDispatcher.dispatch(wd.createFindElementCommand(sessionId, ElementSelector(ElementSelector.Strategy.CSS, "#main"))).obj("value")?.string("ELEMENT")
+//                    ?: throw RuntimeException()
+//            val element = Element(elementId)
 
-        Thread.sleep(8000)
+            val executeResult = wdHttpRequestDispatcher.dispatch(wd.createExecuteScriptCommand(sessionId, jsString, listOf(jsArg))).get("value")
+            println("Execute result: $executeResult")
 
-        val screenshotBase64 = wdHttpRequestDispatcher.dispatch(createTakeScreenshotCommand(sessionId)).string("value")
-        val screenshot = Base64.getDecoder().decode(screenshotBase64)
-        //Files.write(Paths.get("./test.png"), screenshot, StandardOpenOption.CREATE)
-        return@startSession screenshot
+            //val screenshotBase64 = wdHttpRequestDispatcher.dispatch(wd.createTakeElementScreenshotCommand(sessionId, element)).string("value")
+            val screenshotBase64 = wdHttpRequestDispatcher.dispatch(wd.createTakeScreenshotCommand(sessionId)).string("value")
+            val screenshot = Base64.getDecoder().decode(screenshotBase64)
+            //Files.write(Paths.get("./test.png"), screenshot, StandardOpenOption.CREATE)
+            return@startSession screenshot
+        }
     }
 }
 
