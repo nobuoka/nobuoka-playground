@@ -1,3 +1,4 @@
+# Use openjdk:8 because openjdk:9 has SSL issue
 # See : https://github.com/docker-library/openjdk/issues/145
 FROM openjdk:8 AS build-env
 
