@@ -1,8 +1,13 @@
-var args = JSON.parse(arguments[0]) || [];
+var args = JSON.parse(arguments[0]) || {
+  route: [],
+  width: 120,
+  height: 240,
+};
 return new Promise(function (resolve, reject) {
-  for (var i = 0; i + 1 < args.length; i += 2) {
-    var x = args[i];
-    var y = args[i + 1]
+  var route = args.route;
+  for (var i = 0; i + 1 < route.length; i += 2) {
+    var x = route[i];
+    var y = route[i + 1]
     var e = document.createElement("span");
     e.style.width = "2px";
     e.style.height = "2px";
@@ -12,6 +17,9 @@ return new Promise(function (resolve, reject) {
     e.style.left = (parseInt(y) - 1) + "px";
     document.body.appendChild(e);
   }
+  var mapElem = document.getElementById("map");
+  mapElem.style.width = args.width + "px";
+  mapElem.style.height = args.height + "px";
   var map = new ol.Map({
     target: 'map',
     layers: [
@@ -25,6 +33,8 @@ return new Promise(function (resolve, reject) {
     })
   });
   setTimeout(function () {
-    resolve(args);
-  }, 2000);
+    resolve({
+      targetElementXPath: "//*[@id='map']",
+    });
+  }, 2000); // TODO : 指定秒数待つのではなく、地図の読み込みが完了したら返るようにする。
 });

@@ -2,6 +2,8 @@ package info.vividcode.sample.wdip
 
 import com.beust.klaxon.JsonArray
 import com.beust.klaxon.JsonObject
+import java.math.BigDecimal
+import java.math.BigInteger
 import java.util.*
 
 interface NewSessionCommandExecutor {
@@ -19,13 +21,15 @@ interface DeleteSessionCommandExecutor {
 }
 interface SetWindowRectExecutor { fun WebDriverCommand.SetWindowRect.execute() }
 interface GoCommandExecutor { fun WebDriverCommand.Go.execute() }
-interface ExecuteScriptCommandExecutor { fun WebDriverCommand.ExecuteAsyncScript.execute(): Any? }
+interface ExecuteScriptCommandExecutor { fun WebDriverCommand.ExecuteAsyncScript.execute(): ScriptResult }
 interface TakeScreenshotCommandExecutor { fun WebDriverCommand.TakeScreenshot.execute(): ByteArray }
+interface TakeElementScreenshotCommandExecutor { fun WebDriverCommand.TakeElementScreenshot.execute(): ByteArray }
 interface FindElementCommandExecutor { fun WebDriverCommand.FindElement.execute(): WebElement }
 
 data class ElementSelector(val strategy: Strategy, val value: String) {
     enum class Strategy {
-        CSS
+        //CSS, // ChromeDriver は "css" で、geckodriver は "css selector"?
+        XPATH,
     }
 }
 data class WebElement(val reference: String) {
@@ -38,7 +42,8 @@ data class WebElement(val reference: String) {
 interface WebDriverCommandExecutor :
     NewSessionCommandExecutor, DeleteSessionCommandExecutor,
     SetWindowRectExecutor,
-    GoCommandExecutor, ExecuteScriptCommandExecutor, TakeScreenshotCommandExecutor,
+    GoCommandExecutor, ExecuteScriptCommandExecutor,
+    TakeScreenshotCommandExecutor, TakeElementScreenshotCommandExecutor,
     FindElementCommandExecutor
 
 open class OkHttpWebDriverCommandExecutor(
@@ -102,11 +107,33 @@ open class OkHttpWebDriverCommandExecutor(
         ) {
             (it.array<Any?>("value") ?: throw RuntimeException("$it")).let {
                 when (it[0]) {
-                    true -> it[1]
+                    true -> it[1].let {
+                        when (it) {
+                        // Possible types : https://github.com/cbeust/klaxon#low-level-api
+                            is Int -> ScriptResult.Number(BigDecimal(it))
+                            is Long -> ScriptResult.Number(BigDecimal(it))
+                            is BigInteger -> ScriptResult.Number(BigDecimal(it))
+                            is Double -> ScriptResult.Number(BigDecimal(it))
+                            is String -> ScriptResult.String(it)
+                            is Boolean -> ScriptResult.Boolean(it)
+                            is JsonObject -> ScriptResult.Object(it)
+                            is JsonArray<*> -> ScriptResult.Array(it)
+                            null -> ScriptResult.Null
+                            else -> throw RuntimeException("")
+                        }
+                    }
                     false -> throw RuntimeException("${it[1]}")
                     else -> throw RuntimeException("$it")
                 }
             }
+        }
+
+    override fun WebDriverCommand.TakeElementScreenshot.execute(): ByteArray =
+        dispatcher.dispatch(
+            WebDriverCommandHttpRequest("GET", "/session/$sessionPathSegment/element/${this.targetElement.reference}/screenshot", null)
+        ) {
+            val screenshotBase64 = it.string("value")
+            Base64.getDecoder().decode(screenshotBase64)
         }
 
     override fun WebDriverCommand.TakeScreenshot.execute(): ByteArray =
@@ -121,7 +148,8 @@ open class OkHttpWebDriverCommandExecutor(
         dispatcher.dispatch(
             WebDriverCommandHttpRequest("POST", "/session/$sessionPathSegment/element", JsonObject(mapOf(
                 "using" to when (selector.strategy) {
-                    ElementSelector.Strategy.CSS -> "css"
+                    //ElementSelector.Strategy.CSS -> "css" // "css selector"
+                    ElementSelector.Strategy.XPATH -> "xpath"
                 },
                 "value" to selector.value
             )).toJsonString())
@@ -149,10 +177,19 @@ interface WebDriverCommand {
     data class Go(override val session: WebDriverSession, val url: String) : SessionCommand
     data class ExecuteAsyncScript(override val session: WebDriverSession, val script: Script) : SessionCommand
     data class TakeScreenshot(override val session: WebDriverSession) : SessionCommand
+    data class TakeElementScreenshot(override val session: WebDriverSession, val targetElement: WebElement) : SessionCommand
     data class FindElement(override val session: WebDriverSession, val selector: ElementSelector) : SessionCommand
 
 }
 
+sealed class ScriptResult {
+    data class Object(val value: JsonObject) : ScriptResult()
+    data class Array(val value: JsonArray<*>) : ScriptResult()
+    data class String(val value: kotlin.String) : ScriptResult()
+    data class Number(val value: BigDecimal) : ScriptResult()
+    data class Boolean(val value: kotlin.Boolean) : ScriptResult()
+    object Null : ScriptResult()
+}
 data class Rect(val width: Int, val height: Int)
 data class Script(val script: String, val args: List<Any>? = null)
 

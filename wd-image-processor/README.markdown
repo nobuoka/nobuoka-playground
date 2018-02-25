@@ -11,8 +11,8 @@ docker-compose up
 
 起動したら下記 URL にアクセスすると画像が表示される。
 
-* http://localhost:8080/hello?width=640&height=480&arg="こんにちは"
-* http://localhost:8080/map?width=640&height=480&arg=[10,10,10,15,10,20,10,25,13,30,16,33,20,35,25,36]
+* http://localhost:8080/hello?arg={%22message%22:%20%22%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF%22}
+* http://localhost:8080/map?arg={%22route%22:%20[10,10,10,15,10,20,10,25,13,30,16,33,20,35,25,36],%20%22width%22:%20200,%20%22height%22:%20200}
 
 ## 仕組み
 
@@ -20,7 +20,7 @@ docker-compose up
 
 * app : アプリケーション本体。
     * 設定ファイルで指定されたエンドポイントへのリクエストがあった際に、WebDriver を使用して指定された HTML を読み込み、JS を実行し、そのスクリーンショットを撮って返す。
-* wd-server : WebDriver のブラウザ側。
+* wd-server-*xxx* : WebDriver のブラウザ側。 geckodriver が複数セッションを持てないので、複数インスタンスがそれぞれ 1 セッションを持つ形にしている。
 
 ### 設定ファイル
 
@@ -28,13 +28,25 @@ docker-compose up
     * サンプル設定ファイルが [sampleProcessors/processors.json](./sampleProcessors/processors.json) にある。
     * パスをキーとして、HTML ファイルと JS ファイルを値とする JSON オブジェクト。
 
-### クエリパラメータ
+### JS への入力と JS からの出力
 
-次の 3 つのクエリパラメータを取る。
+JS への入力として、URL のクエリパラメータの次のものが使用される。
 
-* `width` : WebDriver のブラウザの画面の幅。 どうやら最小値が決まっており、438 px 未満にはできない模様。 (ChromeDriver の場合。)
-* `height` : WebDriver のブラウザの画面の幅。
 * `arg` : JS に渡される文字列。 JS 側では `arguments[0]` で取得できる。
+
+JS からの出力としては、次の形のオブジェクトを期待する。
+
+```javascript
+{
+  "targetElementXPath": "//*[@id='target']",
+}
+```
+
+* `targetElementXPath` : 任意の XPath 式。 この XPath で指定される要素の範囲がスクリーンショットとして取得される。
+
+出力する範囲などは JS 側で自由に設定できる。
+呼び出し側で幅や高さを指定したい場合は、URL のクエリパラメータの `arg` をオブジェクトの形にして
+`width` プロパティや `height` プロパティを渡せばよい。
 
 ## 開発する場合は
 

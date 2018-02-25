@@ -19,5 +19,6 @@ RUN ./gradlew installDist
 FROM openjdk:8
 
 COPY --from=build-env /app/build/install/app /app
+
 ENV PATH $PATH:/app/bin
 CMD ["app"]
