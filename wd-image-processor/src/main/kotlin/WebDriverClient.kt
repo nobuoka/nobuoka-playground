@@ -36,6 +36,14 @@ data class WebElement(val reference: String) {
     companion object {
         const val IDENTIFIER = "element-6066-11e4-a52e-4f735466cecf"
         const val DEPRECATED_IDENTIFIER = "ELEMENT"
+
+        fun from(obj: JsonObject): WebElement {
+            val webElementReference =
+                    obj.string(WebElement.IDENTIFIER) ?:
+                    obj.string(WebElement.DEPRECATED_IDENTIFIER) ?:
+                    throw RuntimeException("$obj")
+            return WebElement(webElementReference)
+        }
     }
 }
 
@@ -154,13 +162,7 @@ open class OkHttpWebDriverCommandExecutor(
                 "value" to selector.value
             )).toJsonString())
         ) {
-            (it.obj("value") ?: throw RuntimeException("$it")).let {
-                val webElementReference =
-                    it.string(WebElement.IDENTIFIER) ?:
-                    it.string(WebElement.DEPRECATED_IDENTIFIER) ?:
-                    throw RuntimeException("$it")
-                WebElement(webElementReference)
-            }
+            (it.obj("value") ?: throw RuntimeException("$it")).let(WebElement.Companion::from)
         }
 
 }

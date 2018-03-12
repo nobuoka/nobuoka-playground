@@ -38,11 +38,11 @@ JS からの出力としては、次の形のオブジェクトを期待する�
 
 ```javascript
 {
-  "targetElementXPath": "//*[@id='target']",
+  "targetElement": element,
 }
 ```
 
-* `targetElementXPath` : 任意の XPath 式。 この XPath で指定される要素の範囲がスクリーンショットとして取得される。
+* `targetElement` : HTML 要素。 この要素の範囲がスクリーンショットとして取得される。 `null` でもよく、その場合は `body` 要素全体が対象となる。
 
 出力する範囲などは JS 側で自由に設定できる。
 呼び出し側で幅や高さを指定したい場合は、URL のクエリパラメータの `arg` をオブジェクトの形にして

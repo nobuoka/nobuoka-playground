@@ -34,7 +34,7 @@ return new Promise(function (resolve, reject) {
   });
   setTimeout(function () {
     resolve({
-      targetElementXPath: "//*[@id='map']",
+      targetElement: document.getElementById("map"),
     });
   }, 2000); // TODO : 指定秒数待つのではなく、地図の読み込みが完了したら返るようにする。
 });

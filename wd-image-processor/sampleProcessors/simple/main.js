@@ -11,5 +11,5 @@ for (var i = 0; i < 40; i++) {
 }
 
 return {
-  targetElementXPath: "//*[@id='target']",
+  targetElement: document.getElementById("target"),
 };

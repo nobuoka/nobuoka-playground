@@ -131,7 +131,12 @@ class WdImageProcessingExecutor(private val htmlString: String, private val jsSt
 
             val executeResult = parseScriptResponse((rawExecuteResult as? ScriptResult.Object)?.value)
 
-            val element = WebDriverCommand.FindElement(session, ElementSelector(ElementSelector.Strategy.XPATH, executeResult.targetElementXPath)).execute()
+            val element =
+                    executeResult.targetElement ?:
+                    WebDriverCommand.FindElement(
+                            session,
+                            ElementSelector(ElementSelector.Strategy.XPATH, "//body")
+                    ).execute()
             WebDriverCommand.TakeElementScreenshot(session, element).execute()
 
 //            val screenshotRect = parseScreenshotRect(
@@ -152,12 +157,12 @@ data class ScreenshotRect(
 )
 
 data class ImageProcessorScriptResponse(
-    val targetElementXPath: String
+    val targetElement: WebElement?
 )
 
 fun parseScriptResponse(obj: JsonObject?) =
         ImageProcessorScriptResponse(
-            targetElementXPath = (obj?.get("targetElementXPath") as? String ?: "//body")
+            targetElement = (obj?.get("targetElement") as? JsonObject)?.let(WebElement.Companion::from)
         )
 
 fun parseScreenshotRect(obj: JsonObject?, defaultValue: ScreenshotRect) =
