@@ -11,8 +11,8 @@ docker-compose up
 
 起動したら下記 URL にアクセスすると画像が表示される。
 
-* http://localhost:8080/hello?arg={%22message%22:%20%22%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF%22}
-* http://localhost:8080/map?arg={%22route%22:%20[10,10,10,15,10,20,10,25,13,30,16,33,20,35,25,36],%20%22width%22:%20200,%20%22height%22:%20200}
+* http://localhost:8080/hello?arg={%22message%22:%20%22%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF%22}&signature=DypjE3COpjC2C%2BGWid8jhA8SJbY%3D
+* http://localhost:8080/map?arg={%22route%22:%20[10,10,10,15,10,20,10,25,13,30,16,33,20,35,25,36],%20%22width%22:%20200,%20%22height%22:%20200}&signature=yNPbr8uynVcgoCUVM59TBkIlHlE%3D
 
 ## 仕組み
 
@@ -27,6 +27,8 @@ docker-compose up
 * app の `PROCESSORS_CONFIG_PATH` 環境変数で、画像処理の設定ファイルを指定する。
     * サンプル設定ファイルが [sampleProcessors/processors.json](./sampleProcessors/processors.json) にある。
     * パスをキーとして、HTML ファイルと JS ファイルを値とする JSON オブジェクト。
+    * オプショナルの設定値として `key` がある。 このプロパティを定義しておくと、クエリパラメータとして `signature` を送る必要がある。
+        * `signature` の計算方法は、`arg` の文字列 (URL エンコード前) を data、設定ファイルの `key` を key として HMAC-SHA1 のダイジェストを Base64 エンコードしたものである。
 
 ### JS への入力と JS からの出力
 

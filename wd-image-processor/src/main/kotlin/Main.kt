@@ -11,7 +11,10 @@ import io.ktor.routing.*
 import io.ktor.application.*
 import io.ktor.content.OutgoingContent
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.Parameters
 import io.ktor.pipeline.PipelineInterceptor
+import io.ktor.request.path
 import io.ktor.response.respond
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
@@ -22,12 +25,22 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import javax.imageio.ImageIO
 import java.io.*
+import java.net.URL
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.BlockingQueue
 import kotlin.coroutines.experimental.CoroutineContext
 
 class ByteArrayContent(override val contentType: ContentType, private val bytes: ByteArray) : OutgoingContent.ByteArrayContent() {
     override fun bytes(): ByteArray = bytes
+}
+
+fun verifySignature(path: String, queryParameters: Parameters, key: String): Boolean {
+    val signatureInfo = getUrlSignatureInfoFromUrl(key, queryParameters)
+    return when (signatureInfo) {
+        is UrlSignatureInfoResponse.UrlSignatureInfo ->
+            makeSignature(signatureInfo.signatureBase, key) == signatureInfo.signature
+        UrlSignatureInfoResponse.InvalidUrl -> false
+    }
 }
 
 fun main(args: Array<String>) {
@@ -42,7 +55,7 @@ fun main(args: Array<String>) {
 
     val settings = parseProcessorsConfigJson(Paths.get(processorsConfigJsonPath))
     val functionMap = settings.map {
-        it.path to createWdImageProcessingPipelineInterceptor(WdImageProcessingExecutor(it.html, it.js, wdSessionManager))
+        it.path to createWdImageProcessingPipelineInterceptor(WdImageProcessingExecutor(it.html, it.js, wdSessionManager), it.key)
     }.toMap()
 
     val server = embeddedServer(Netty, 8080) {
@@ -101,7 +114,7 @@ class WebDriverSessionManager(okHttpClient: OkHttpClient, webDriverBaseUrls: Lis
             }.await()
 }
 
-data class ProcessorSetting(val path: String, val html: String, val js: String)
+data class ProcessorSetting(val path: String, val html: String, val js: String, val key: String?)
 
 private val screenshotRectDefaultValue = ScreenshotRect(0, 0, 360, 360)
 
@@ -112,12 +125,25 @@ fun parseProcessorsConfigJson(jsonFile: Path): List<ProcessorSetting> {
     return configObject.entries.map { (path, config) ->
         val htmlString = (config as? JsonObject)?.string("html")?.let { Paths.get(it).readContent() }
         val jsString = (config as? JsonObject)?.string("js")?.let { Paths.get(it).readContent() }
-        ProcessorSetting(path, htmlString ?: "", jsString ?: "")
+        val key = (config as? JsonObject)?.string("key")
+        ProcessorSetting(path, htmlString ?: "", jsString ?: "", key)
     }
 }
 
-fun createWdImageProcessingPipelineInterceptor(wdImageProcessingExecutor: WdImageProcessingExecutor): PipelineInterceptor<Unit, ApplicationCall> = {
-    val arg = call.request.queryParameters["arg"] ?: "null"
+fun createWdImageProcessingPipelineInterceptor(
+    wdImageProcessingExecutor: WdImageProcessingExecutor,
+    key: String?
+): PipelineInterceptor<Unit, ApplicationCall> = lambda@{
+    val argParameter = call.request.queryParameters["arg"]
+    val signatureParameter = call.request.queryParameters["signature"]
+    if (key != null) {
+        val expectedSignature = Signatures.makeSignatureWithHmacSha1(key, argParameter ?: "")
+        if (expectedSignature != signatureParameter) {
+            call.respond(HttpStatusCode.BadRequest, "Bad Signature")
+            return@lambda
+        }
+    }
+    val arg = argParameter ?: "null"
     call.respond(ByteArrayContent(ContentType.Image.PNG, wdImageProcessingExecutor.execute(arg)))
 }
 

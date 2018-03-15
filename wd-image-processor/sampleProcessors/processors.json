@@ -1,10 +1,12 @@
 {
   "map": {
     "html": "./map/map.html",
-    "js": "./map/map.js"
+    "js": "./map/map.js",
+    "key": "sample-key-map"
   },
   "hello": {
     "html": "./simple/main.html",
-    "js": "./simple/main.js"
+    "js": "./simple/main.js",
+    "key": "sample-key-hello"
   }
 }
