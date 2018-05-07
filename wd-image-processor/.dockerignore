@@ -1,9 +1,0 @@
-/.gradle/
-/.idea/
-#/build/
-/out/
-
-/sampleProcessors/
-/Dockerfile
-/docker-compose.yml
-/README.markdown
