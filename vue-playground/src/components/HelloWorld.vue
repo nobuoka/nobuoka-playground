@@ -1,6 +1,7 @@
 <template>
   <div class="hello">
     <h1>{{ msg }}</h1>
+    <SampleComponent msg="SampleComponent を使用します"></SampleComponent>
     <p>
       For a guide and recipes on how to configure / customize this project,<br>
       check out the
@@ -33,9 +34,11 @@
 
 <script lang="ts">
 import { defineComponent } from 'vue';
+import SampleComponent from './SampleComponent.vue';
 
 export default defineComponent({
   name: 'HelloWorld',
+  components: { SampleComponent },
   props: {
     msg: String,
   },
