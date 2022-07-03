@@ -1,7 +1,7 @@
 <template>
   <div class="hello">
     <h1>{{ msg }}</h1>
-    <SampleComponent msg="SampleComponent を使用します"></SampleComponent>
+    <SampleComponent v-bind="{ initialTime: 500, countUpIntervalInMills: 20 }"></SampleComponent>
     <p>
       For a guide and recipes on how to configure / customize this project,<br>
       check out the
