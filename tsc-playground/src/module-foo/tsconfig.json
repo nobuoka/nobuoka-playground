@@ -1,0 +1,7 @@
+{
+    "compilerOptions": {
+        "outDir": "../../build/module-foo/",
+        "composite": true
+    },
+    "include": ["**/*.ts"]
+}

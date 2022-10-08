@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "outDir": "../../build/module-bar/",
+        "baseUrl": ".",
+        "paths": {
+            "module-foo/*": ["../module-foo/*"]
+        }
+    },
+    "include": ["**/*.ts"],
+    "references": [
+        { "path": "../module-foo/" }
+    ]
+}

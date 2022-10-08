@@ -1,0 +1,14 @@
+{
+  "name": "tsc-playground",
+  "version": "1.0.0",
+  "description": "tsc コマンドの挙動を確認するための遊び場",
+  "author": "Yuya Nobuoka",
+  "license": "ISC",
+  "scripts": {
+    "build": "tsc --build src/module-bar/",
+    "watch": "tsc --build --watch src/module-bar/"
+  },
+  "devDependencies": {
+    "typescript": "^4.8.4"
+  }
+}
